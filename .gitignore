@@ -1,0 +1,17 @@
+# Archivos del sistema
+.DS_Store
+Thumbs.db
+*.tmp
+
+# Archivos de IDE
+.vscode/
+.idea/
+
+# Archivos de desarrollo interno
+CORRECCIONES.md
+ADVANCED_GUIDE.md
+PROJECT_INFO.md
+QUICK_START.md
+START_HERE.md
+VISUAL_GUIDE.md
+MAIN_README.md
