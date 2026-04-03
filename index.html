@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SaveTrack Research - Buscador Automático de Empresas de Transporte</title>
+    <meta name="description" content="SaveTrack Research: Buscador automático de empresas de transporte en Argentina. Filtra por provincia, sector y tamaño de flota. Exporta a Excel o CSV.">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+        
+        * {
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        
+        .card-shadow {
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+        
+        .card-shadow-lg {
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .tooltip {
+            position: relative;
+        }
+        
+        .tooltip .tooltiptext {
+            visibility: hidden;
+            width: 200px;
+            background-color: #1f2937;
+            color: #fff;
+            text-align: center;
+            border-radius: 6px;
+            padding: 8px;
+            position: absolute;
+            z-index: 1;
+            bottom: 125%;
+            left: 50%;
+            margin-left: -100px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            font-size: 12px;
+        }
+        
+        .tooltip:hover .tooltiptext {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        .progress-bar {
+            transition: width 0.5s ease;
+        }
+        
+        .badge-priority-maxima {
+            background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        }
+        
+        .badge-priority-alta {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
+        
+        .badge-priority-media {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .loading-spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .table-row:hover {
+            background-color: #f9fafb;
+            transform: translateY(-2px);
+            transition: all 0.2s ease;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(102, 126, 234, 0.4);
+        }
+        
+        .stats-card {
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+</head>
+<body class="bg-gray-50">
+    <!-- Header -->
+    <header class="gradient-bg text-white shadow-lg">
+        <div class="container mx-auto px-6 py-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                    <div class="bg-white p-3 rounded-lg">
+                        <i class="fas fa-truck text-purple-600 text-3xl"></i>
+                    </div>
+                    <div>
+                        <h1 class="text-3xl font-bold">SaveTrack Research</h1>
+                        <p class="text-purple-200 text-sm">Buscador Automático de Empresas de Transporte</p>
+                    </div>
+                </div>
+                <div class="hidden md:flex items-center space-x-6">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold" id="totalEmpresas">0</p>
+                        <p class="text-sm text-purple-200">Empresas Encontradas</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold" id="totalFlota">0</p>
+                        <p class="text-sm text-purple-200">Vehículos Totales</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="container mx-auto px-6 py-8">
+        <!-- Panel de Búsqueda -->
+        <div class="bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-search text-purple-600 mr-2"></i>
+                    Panel de Búsqueda
+                </h2>
+                <button onclick="toggleAdvancedConfig()" class="text-purple-600 hover:text-purple-800 font-medium">
+                    <i class="fas fa-cog mr-2"></i>Configuración Avanzada
+                </button>
+            </div>
+
+            <!-- Búsquedas Preset -->
+            <div class="mb-6">
+                <p class="text-sm font-semibold text-gray-600 mb-3">🚀 Búsquedas Rápidas:</p>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <button onclick="presetSearch('top-amba')" class="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3 rounded-lg hover:shadow-lg transition-all">
+                        <i class="fas fa-city mr-2"></i>Top 100 AMBA
+                    </button>
+                    <button onclick="presetSearch('refrigerado')" class="bg-gradient-to-r from-cyan-500 to-cyan-600 text-white px-4 py-3 rounded-lg hover:shadow-lg transition-all">
+                        <i class="fas fa-snowflake mr-2"></i>Refrigerado Nacional
+                    </button>
+                    <button onclick="presetSearch('rosario')" class="bg-gradient-to-r from-green-500 to-green-600 text-white px-4 py-3 rounded-lg hover:shadow-lg transition-all">
+                        <i class="fas fa-map-marker-alt mr-2"></i>Rosario - Santa Fe
+                    </button>
+                    <button onclick="presetSearch('granos')" class="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white px-4 py-3 rounded-lg hover:shadow-lg transition-all">
+                        <i class="fas fa-seedling mr-2"></i>Transporte Granos
+                    </button>
+                </div>
+            </div>
+
+            <!-- Filtros de Búsqueda -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-map-marked-alt text-purple-600 mr-1"></i>Provincia
+                    </label>
+                    <select id="provinciaSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="">Todas las provincias</option>
+                        <option value="Buenos Aires">Buenos Aires</option>
+                        <option value="CABA">Ciudad de Buenos Aires</option>
+                        <option value="Córdoba">Córdoba</option>
+                        <option value="Santa Fe">Santa Fe</option>
+                        <option value="Mendoza">Mendoza</option>
+                        <option value="Tucumán">Tucumán</option>
+                        <option value="Entre Ríos">Entre Ríos</option>
+                        <option value="Salta">Salta</option>
+                        <option value="Corrientes">Corrientes</option>
+                        <option value="Misiones">Misiones</option>
+                        <option value="San Juan">San Juan</option>
+                        <option value="Jujuy">Jujuy</option>
+                        <option value="Río Negro">Río Negro</option>
+                        <option value="Neuquén">Neuquén</option>
+                        <option value="Chaco">Chaco</option>
+                        <option value="Formosa">Formosa</option>
+                        <option value="Chubut">Chubut</option>
+                        <option value="San Luis">San Luis</option>
+                        <option value="Catamarca">Catamarca</option>
+                        <option value="La Rioja">La Rioja</option>
+                        <option value="La Pampa">La Pampa</option>
+                        <option value="Santa Cruz">Santa Cruz</option>
+                        <option value="Tierra del Fuego">Tierra del Fuego</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-industry text-purple-600 mr-1"></i>Sector
+                    </label>
+                    <select id="sectorSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="">Todos los sectores</option>
+                        <option value="Carga General">Carga General</option>
+                        <option value="Refrigerado">Transporte Refrigerado</option>
+                        <option value="Internacional">Transporte Internacional</option>
+                        <option value="Granos">Transporte de Granos</option>
+                        <option value="Contenedores">Contenedores</option>
+                        <option value="Logística">Logística Integral</option>
+                        <option value="E-commerce">E-commerce</option>
+                        <option value="Minería">Minería</option>
+                        <option value="Construcción">Construcción</option>
+                        <option value="Combustibles">Combustibles</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-truck-moving text-purple-600 mr-1"></i>Tamaño Flota
+                    </label>
+                    <select id="tamanoSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="">Todos los tamaños</option>
+                        <option value="mega">Mega (500+ vehículos)</option>
+                        <option value="grande">Grande (100-500 vehículos)</option>
+                        <option value="mediana">Mediana (20-100 vehículos)</option>
+                        <option value="pequena">Pequeña (5-20 vehículos)</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                        <i class="fas fa-list-ol text-purple-600 mr-1"></i>Límite Resultados
+                    </label>
+                    <select id="limiteSelect" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+                        <option value="10">10 empresas</option>
+                        <option value="25">25 empresas</option>
+                        <option value="50" selected>50 empresas</option>
+                        <option value="100">100 empresas</option>
+                        <option value="200">200 empresas</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Keywords personalizados -->
+            <div class="mb-6">
+                <label class="block text-sm font-medium text-gray-700 mb-2">
+                    <i class="fas fa-keyboard text-purple-600 mr-1"></i>Keywords Personalizados (opcional)
+                </label>
+                <input type="text" id="keywordsInput" placeholder="Ej: logística, distribución, flota propia..." class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent">
+            </div>
+
+            <!-- Configuración Avanzada (oculta por defecto) -->
+            <div id="advancedConfig" class="hidden mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                <h3 class="font-semibold text-gray-700 mb-4">⚙️ Configuración Avanzada</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div class="flex items-center">
+                        <input type="checkbox" id="scrapingProfundo" checked class="mr-2 h-4 w-4 text-purple-600">
+                        <label for="scrapingProfundo" class="text-sm text-gray-700">Scraping profundo de webs</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="validarEmails" checked class="mr-2 h-4 w-4 text-purple-600">
+                        <label for="validarEmails" class="text-sm text-gray-700">Validar emails</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input type="checkbox" id="estimarFlota" checked class="mr-2 h-4 w-4 text-purple-600">
+                        <label for="estimarFlota" class="text-sm text-gray-700">Estimar tamaño flota</label>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botón de Búsqueda -->
+            <div class="flex items-center justify-between">
+                <button onclick="iniciarBusqueda()" id="btnBuscar" class="btn-primary text-white px-8 py-4 rounded-lg font-semibold text-lg shadow-lg">
+                    <i class="fas fa-search mr-2"></i>Buscar Empresas
+                </button>
+                <button onclick="limpiarResultados()" class="bg-gray-200 text-gray-700 px-6 py-3 rounded-lg font-medium hover:bg-gray-300 transition-all">
+                    <i class="fas fa-trash mr-2"></i>Limpiar
+                </button>
+            </div>
+        </div>
+
+        <!-- Barra de Progreso -->
+        <div id="progressContainer" class="hidden bg-white rounded-xl shadow-lg p-6 mb-8">
+            <div class="flex items-center justify-between mb-3">
+                <div class="flex items-center space-x-3">
+                    <div class="loading-spinner"></div>
+                    <div>
+                        <p class="font-semibold text-gray-800">Buscando empresas...</p>
+                        <p class="text-sm text-gray-600" id="progressText">Iniciando búsqueda...</p>
+                    </div>
+                </div>
+                <p class="text-lg font-bold text-purple-600" id="progressPercent">0%</p>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-3">
+                <div id="progressBar" class="progress-bar bg-gradient-to-r from-purple-500 to-purple-700 h-3 rounded-full" style="width: 0%"></div>
+            </div>
+        </div>
+
+        <!-- Estadísticas -->
+        <div id="statsContainer" class="hidden grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="stats-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Total Empresas</p>
+                        <p class="text-3xl font-bold text-purple-600" id="statEmpresas">0</p>
+                    </div>
+                    <div class="bg-purple-100 p-4 rounded-full">
+                        <i class="fas fa-building text-purple-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Total Flota</p>
+                        <p class="text-3xl font-bold text-blue-600" id="statFlota">0</p>
+                    </div>
+                    <div class="bg-blue-100 p-4 rounded-full">
+                        <i class="fas fa-truck text-blue-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Datos Completos</p>
+                        <p class="text-3xl font-bold text-green-600" id="statCompletos">0%</p>
+                    </div>
+                    <div class="bg-green-100 p-4 rounded-full">
+                        <i class="fas fa-check-circle text-green-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stats-card bg-white rounded-xl shadow-lg p-6">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-gray-600 text-sm font-medium">Prioridad Alta</p>
+                        <p class="text-3xl font-bold text-orange-600" id="statPrioridad">0</p>
+                    </div>
+                    <div class="bg-orange-100 p-4 rounded-full">
+                        <i class="fas fa-star text-orange-600 text-2xl"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabla de Resultados -->
+        <div id="resultadosContainer" class="hidden bg-white rounded-xl shadow-lg overflow-hidden">
+            <div class="p-6 border-b border-gray-200">
+                <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-2xl font-bold text-gray-800">
+                        <i class="fas fa-table text-purple-600 mr-2"></i>
+                        Resultados de Búsqueda
+                    </h2>
+                    <div class="flex space-x-3">
+                        <button onclick="seleccionarTodas()" class="bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition-all">
+                            <i class="fas fa-check-double mr-2"></i>Seleccionar Todas
+                        </button>
+                        <button onclick="exportarExcel()" class="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-all">
+                            <i class="fas fa-file-excel mr-2"></i>Descargar Excel
+                        </button>
+                        <button onclick="exportarCSV()" class="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-all">
+                            <i class="fas fa-file-csv mr-2"></i>Descargar CSV
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Filtros de Tabla -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-3">
+                    <input type="text" id="filtroNombre" placeholder="Filtrar por nombre..." class="px-4 py-2 border border-gray-300 rounded-lg" onkeyup="filtrarTabla()">
+                    <select id="filtroProvincia" class="px-4 py-2 border border-gray-300 rounded-lg" onchange="filtrarTabla()">
+                        <option value="">Todas las provincias</option>
+                    </select>
+                    <select id="filtroSector" class="px-4 py-2 border border-gray-300 rounded-lg" onchange="filtrarTabla()">
+                        <option value="">Todos los sectores</option>
+                    </select>
+                    <select id="filtroPrioridad" class="px-4 py-2 border border-gray-300 rounded-lg" onchange="filtrarTabla()">
+                        <option value="">Todas las prioridades</option>
+                        <option value="MÁXIMA">MÁXIMA</option>
+                        <option value="ALTA">ALTA</option>
+                        <option value="MEDIA">MEDIA</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="w-full">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                                <input type="checkbox" id="selectAll" onclick="toggleSelectAll()" class="h-4 w-4 text-purple-600">
+                            </th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Empresa</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provincia</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ciudad</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Teléfono</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Flota Est.</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sector</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Prioridad</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Web</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tablaResultados" class="bg-white divide-y divide-gray-200">
+                        <!-- Los resultados se cargarán aquí dinámicamente -->
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="p-4 bg-gray-50 border-t border-gray-200 flex items-center justify-between">
+                <p class="text-sm text-gray-600">
+                    Mostrando <span id="countMostradas">0</span> de <span id="countTotal">0</span> empresas
+                    (<span id="countSeleccionadas">0</span> seleccionadas)
+                </p>
+            </div>
+        </div>
+
+        <!-- Historial de Búsquedas -->
+        <div id="historialContainer" class="hidden mt-8 bg-white rounded-xl shadow-lg p-6">
+            <h3 class="font-bold text-gray-800 mb-4">
+                <i class="fas fa-history text-purple-600 mr-2"></i>
+                Historial de Búsquedas
+            </h3>
+            <div id="historialList" class="space-y-2">
+                <!-- El historial se cargará aquí -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-gray-800 text-white py-6 mt-12">
+        <div class="container mx-auto px-6 text-center">
+            <p class="text-sm">
+                <i class="fas fa-truck mr-2"></i>
+                SaveTrack Research - Automatización de Investigación de Empresas de Transporte
+            </p>
+            <p class="text-xs text-gray-400 mt-2">
+                Reduce el trabajo de 3 semanas a 2-4 horas con búsqueda inteligente y scraping automatizado
+            </p>
+        </div>
+    </footer>
+
+    <script src="js/data.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
